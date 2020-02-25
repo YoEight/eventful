@@ -1,0 +1,26 @@
+[package]
+name = "eventful-examples"
+version = "0.1.0"
+authors = ["YoEight <yo.eight@gmail.com>"]
+edition = "2018"
+publish = false
+license = "MIT"
+
+[[bin]]
+name = "eventstore-backend"
+path = "eventstore-backend/main.rs"
+
+[[bin]]
+name = "eventstore-step-by-step"
+path = "eventstore-step-by-step/main.rs"
+
+[dependencies]
+eventful = { path = "../eventful" }
+eventstore = "0.7.3"
+futures = "0.3"
+serde_json = "1.0"
+serde = "1.0"
+serde_derive = "1.0"
+tokio = { version = "0.2", features = ["macros"] }
+uuid = { version = "0.8.1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
