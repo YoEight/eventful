@@ -1,3 +1,1 @@
-pub mod aggregate {
-
-}
+pub mod aggregate {}

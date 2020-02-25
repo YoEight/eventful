@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate serde_json;
 
-use chrono::{Utc, DateTime};
+use chrono::{DateTime, Utc};
 use futures::{StreamExt, TryStreamExt};
 
 mod cmd_args {
@@ -53,29 +53,20 @@ enum Event {
 impl Event {
     fn into_eventstore_event(self) -> eventstore::EventData {
         match self {
-            Event::TaskAdded(args) => {
-                eventstore::EventData::json("task-added", args)
-                    .unwrap()
-            }
+            Event::TaskAdded(args) => eventstore::EventData::json("task-added", args).unwrap(),
 
-            Event::TaskRemoved(args) => {
-                eventstore::EventData::json("task-removed", args)
-                    .unwrap()
-            }
+            Event::TaskRemoved(args) => eventstore::EventData::json("task-removed", args).unwrap(),
 
             Event::TaskCompleted(args) => {
-                eventstore::EventData::json("task-completed", args)
-                    .unwrap()
+                eventstore::EventData::json("task-completed", args).unwrap()
             }
 
             Event::AllTasksCleared => {
-                eventstore::EventData::json("all-tasks-cleared", json!({}))
-                    .unwrap()
+                eventstore::EventData::json("all-tasks-cleared", json!({})).unwrap()
             }
 
             Event::TaskDueDateChanged(args) => {
-                eventstore::EventData::json("task-due-date-changed", args)
-                    .unwrap()
+                eventstore::EventData::json("task-due-date-changed", args).unwrap()
             }
         }
     }
@@ -114,19 +105,11 @@ enum DomainError {
 
 impl State {
     fn default() -> Self {
-        State {
-            tasks: vec![],
-        }
+        State { tasks: vec![] }
     }
 
     fn only_if_task_does_not_already_exist(&self, id: usize) -> bool {
-        for task in self.tasks.iter() {
-            if task.id == id {
-                return false;
-            }
-        }
-
-        true
+        self.get_task(id).is_none()
     }
 
     fn get_task(&self, id: usize) -> Option<&Task> {
@@ -190,29 +173,19 @@ impl State {
                 self.tasks.push(new_task);
             }
 
-            Event::TaskRemoved(args) => {
-                self.tasks.retain(move|task| task.id != args.id)
-            }
+            Event::TaskRemoved(args) => self.tasks.retain(|task| task.id != args.id),
 
-            Event::AllTasksCleared => {
-                self.tasks.clear()
-            }
+            Event::AllTasksCleared => self.tasks.clear(),
 
             Event::TaskCompleted(args) => {
-                for task in self.tasks.iter_mut() {
-                    if task.id == args.id {
-                        task.is_complete = true;
-                        break;
-                    }
+                if let Some(task) = self.tasks.iter_mut().find(|task| task.id == args.id) {
+                    task.is_complete = true;
                 }
             }
 
             Event::TaskDueDateChanged(args) => {
-                for task in self.tasks.iter_mut() {
-                    if task.id == args.id {
-                        task.due_date = args.due_date;
-                        break;
-                    }
+                if let Some(task) = self.tasks.iter_mut().find(|task| task.id == args.id) {
+                    task.due_date = args.due_date;
                 }
             }
         }
@@ -229,24 +202,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await;
 
     // Get current state from the `tasks` stream.
-    let state = connection.read_stream("tasks")
+    let state = connection
+        .read_stream("tasks")
         .iterate_over()
-        .try_fold(State::default(), | mut state, event| async {
+        .try_fold(State::default(), |mut state, event| async {
             state.apply(Event::from_eventstore_event(event));
 
             Ok(state)
-        }).await?;
+        })
+        .await?;
 
     let cmds = vec![
-        Command::AddTask(self::cmd_args::AddTask{
+        Command::AddTask(self::cmd_args::AddTask {
             id: 42,
             name: "Find the meaning of life".to_string(),
             due_date: None,
         }),
-
-        Command::CompleteTask(self::cmd_args::CompleteTask {
-            id: 42,
-        }),
+        Command::CompleteTask(self::cmd_args::CompleteTask { id: 42 }),
     ];
 
     for cmd in cmds.into_iter() {
@@ -256,10 +228,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             Ok(events) => {
-                let events = events.into_iter()
-                    .map(|evt| evt.into_eventstore_event());
+                let events = events.into_iter().map(|evt| evt.into_eventstore_event());
 
-                let _ = connection.write_events("tasks")
+                let _ = connection
+                    .write_events("tasks")
                     .append_events(events)
                     .execute()
                     .await?;

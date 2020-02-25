@@ -1,7 +1,7 @@
-use uuid::Uuid;
 use crate::BankEvent::FundsWithdrawn;
-use serde::{Serialize, Deserialize};
 use futures::StreamExt;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Deserialize, Serialize)]
 struct FundsWithdrawnPayload {
@@ -42,17 +42,13 @@ impl BankEvent {
 
         match event.event_type.as_str() {
             "funds-withdrawn" => {
-                let payload = event
-                    .as_json()
-                    .expect("Trust me, I'm an engineer");
+                let payload = event.as_json().expect("Trust me, I'm an engineer");
 
                 BankEvent::FundsWithdrawn(payload)
             }
 
             "funds-deposited" => {
-                let payload = event
-                    .as_json()
-                    .expect("Trust me, I'm an engineer");
+                let payload = event.as_json().expect("Trust me, I'm an engineer");
 
                 BankEvent::FundsDeposited(payload)
             }
@@ -162,7 +158,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .single_node_connection(addr)
         .await;
 
-    let events = connection.read_stream(account_stream_name.as_str())
+    let events = connection
+        .read_stream(account_stream_name.as_str())
         .iterate_over();
 
     let cmd1 = Command {
@@ -179,13 +176,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // We don't really project a stream state asynchronously besides fetching events from the
     // database but you get the idea.
-    let account = events.fold(seed, |state, item| async {
-        // For simplicity sake, we presume everything went fine when fetching events from the
-        // database.
-        let event = item.expect("Trust me, everything will be fine!");
+    let account = events
+        .fold(seed, |state, item| async {
+            // For simplicity sake, we presume everything went fine when fetching events from the
+            // database.
+            let event = item.expect("Trust me, everything will be fine!");
 
-        state.apply_bank_event(BankEvent::from_eventstore_event(event))
-    }).await;
+            state.apply_bank_event(BankEvent::from_eventstore_event(event))
+        })
+        .await;
 
     let commands = futures::stream::iter(vec![cmd1, cmd2]);
 
@@ -206,13 +205,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // We decide to persist events to the database. Note that even if we know that we don't have that
     // many events in our example, that snippet shows that we could batch those events before saving, for
     // better performance.
-    events.chunks(1_000).for_each(|batch| async {
-        connection.write_events(account_stream_name.clone())
-            .append_events(batch)
-            .execute()
-            .await
-            .expect("In the database, we trust!");
-    }).await;
+    events
+        .chunks(1_000)
+        .for_each(|batch| async {
+            connection
+                .write_events(account_stream_name.clone())
+                .append_events(batch)
+                .execute()
+                .await
+                .expect("In the database, we trust!");
+        })
+        .await;
 
     // At that point, everything is saved in EventStore!
     Ok(())
