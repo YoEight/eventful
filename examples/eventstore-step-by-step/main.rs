@@ -160,12 +160,12 @@ impl State {
         Ok(vec![event])
     }
 
-    fn apply(&mut self, event: Event) {
+    fn apply(&mut self, event: &Event) {
         match event {
             Event::TaskAdded(args) => {
                 let new_task = Task {
                     id: args.id,
-                    name: args.name,
+                    name: args.name.clone(),
                     due_date: args.due_date,
                     is_complete: false,
                 };
@@ -202,11 +202,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await;
 
     // Get current state from the `tasks` stream.
-    let state = connection
+    let mut state = connection
         .read_stream("tasks")
         .iterate_over()
         .try_fold(State::default(), |mut state, event| async {
-            state.apply(Event::from_eventstore_event(event));
+            state.apply(&Event::from_eventstore_event(event));
 
             Ok(state)
         })
@@ -228,6 +228,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             Ok(events) => {
+                for event in events.iter() {
+                    state.apply(event);
+                }
+
                 let events = events.into_iter().map(|evt| evt.into_eventstore_event());
 
                 let _ = connection
